@@ -4,7 +4,7 @@ services:
   # Microserviço de Autenticação (Node.js)
   auth-service:
     build:
-      context: ./auth-micro-service
+      context: ./auth-micro-service-caixinha
       dockerfile: Dockerfile
     container_name: auth-service
     restart: unless-stopped
