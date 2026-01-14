@@ -1,0 +1,62 @@
+version: '3.8'
+
+services:
+  # Microserviço de Autenticação (Node.js)
+  auth-service:
+    build:
+      context: ./auth-micro-service
+      dockerfile: Dockerfile
+    container_name: auth-service
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      JWT_SECRET: ${JWT_SECRET:-sua-chave-secreta-minimo-256-bits-compartilhada}
+      MONGODB_URI: ${MONGODB_URI:-mongodb+srv://minnaelcampelo:1324@gastos.tqfe3ln.mongodb.net/auth?retryWrites=true&w=majority}
+    networks:
+      - controle-gastos-network
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
+    labels:
+      - "com.controle-gastos.service=auth"
+      - "com.controle-gastos.description=Microserviço de autenticação JWT"
+
+  # API Spring Boot (Controle de Gastos)
+  api-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: api-service
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      JWT_SECRET: ${JWT_SECRET:-sua-chave-secreta-minimo-256-bits-compartilhada}
+      SPRING_DATA_MONGODB_URI: ${SPRING_DATA_MONGODB_URI:-mongodb+srv://minnaelcampelo:1324@gastos.tqfe3ln.mongodb.net/controle_gastos?retryWrites=true&w=majority}
+      JAVA_OPTS: "-XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0 -Djava.security.egd=file:/dev/./urandom"
+    networks:
+      - controle-gastos-network
+    depends_on:
+      auth-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/api/categorias"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    labels:
+      - "com.controle-gastos.service=api"
+      - "com.controle-gastos.description=API REST de controle de gastos"
+
+networks:
+  controle-gastos-network:
+    driver: bridge
+    name: controle-gastos-network
